@@ -76,4 +76,20 @@ class Database {
       return result;
     });
   }
+
+  Future<List<String>> getCollectionsList() async {
+    if (_state != UselessDbState.open) {
+      throw Exception("DB is not open");
+    }
+    //TODO: Implement
+    return [];
+  }
+
+  Future<bool> deleteCollection(String name) async {
+    if (_state != UselessDbState.open) {
+      throw Exception("DB is not open");
+    }
+    //TODO: Implement
+    return false;
+  }
 }
