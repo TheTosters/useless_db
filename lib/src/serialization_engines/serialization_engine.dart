@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
-abstract class SerializationEngine {
+import '../database_engine.dart';
+
+abstract class SerializationEngine extends DatabaseEngine {
   String get id;
 
   bool isCompatible(String engineId);

@@ -2,8 +2,11 @@ import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:synchronized/synchronized.dart';
+import 'package:useless_db/src/serialization_engines/json_engine.dart';
 
 import 'collection.dart';
+import 'database_engine.dart';
+import 'database_structure.dart';
 import 'serialization_engines/serialization_engine.dart';
 import 'storage_engine/storage_engine.dart';
 
@@ -16,10 +19,27 @@ class Database {
   final _lock = Lock();
   final _serializationEngines = <SerializationEngine>[];
   final _storageEngines = <StorageEngine>[];
+  late DatabaseStructure _structure;
 
   UselessDbState get state => _state;
 
   Database(this.workDir);
+
+  void registerEngines(List<DatabaseEngine> engines) {
+    for (final e in engines) {
+      if (e is SerializationEngine) {
+        if (!_serializationEngines.contains(e)) {
+          _serializationEngines.add(e);
+        }
+      } else if (e is StorageEngine) {
+        if (!_storageEngines.contains(e)) {
+          _storageEngines.add(e);
+        }
+      } else {
+        throw Exception("Unsupported engine $e, not one of [SerializationEngine, StorageEngine]");
+      }
+    }
+  }
 
   void registerEngine({SerializationEngine? serializationEngine, StorageEngine? storageEngine}) {
     if (serializationEngine != null && !_serializationEngines.contains(serializationEngine)) {
@@ -40,6 +60,7 @@ class Database {
       if (!directory.existsSync()) {
         directory.createSync(recursive: true);
       }
+      _structure = DatabaseStructure(workDir: workDir, serializationEngine: JsonEngine());
       _state = UselessDbState.open;
     });
   }
@@ -54,6 +75,7 @@ class Database {
         await CollectionProxy.close(c);
       }
       _collections.clear();
+      _structure.dispose();
       _state = UselessDbState.closed;
     });
   }
@@ -70,6 +92,7 @@ class Database {
           parentDir: workDir,
           serializationEngines: _serializationEngines,
           storageEngines: _storageEngines,
+          structure: _structure,
         );
         _collections.add(result);
       }
@@ -81,15 +104,23 @@ class Database {
     if (_state != UselessDbState.open) {
       throw Exception("DB is not open");
     }
-    //TODO: Implement
-    return [];
+    return _structure.getCollectionNames();
   }
 
   Future<bool> deleteCollection(String name) async {
     if (_state != UselessDbState.open) {
       throw Exception("DB is not open");
     }
-    //TODO: Implement
-    return false;
+    return await _lock.synchronized(() async {
+      Collection? collection = _collections.firstWhereOrNull((element) => element.name == name);
+      if (collection != null) {
+        await CollectionBuilder.deleteCollection(
+          collection: collection,
+          structure: _structure,
+        );
+        _collections.remove(collection);
+      }
+      return collection != null;
+    });
   }
 }

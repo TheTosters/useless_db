@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:path/path.dart';
 
+import 'database_structure.dart';
 import 'index.dart';
 import 'lock_list.dart';
 import 'serialization_engines/serialization_engine.dart';
@@ -54,7 +55,7 @@ class Collection {
     _storageEngine.performSnapshot(
       (docId, {data}) {
         final decoded = _serializationEngine.decode(data!);
-        for(final index in _indices) {
+        for (final index in _indices) {
           index.addOrUpdateDocument(docId, decoded);
         }
       },
@@ -169,89 +170,65 @@ class CollectionBuilder {
     required String parentDir,
     required List<SerializationEngine> serializationEngines,
     required List<StorageEngine> storageEngines,
+    required DatabaseStructure structure,
   }) async {
-    final dirPath = join(parentDir, name.replaceAll(_regex, "_"));
-
-    final dir = Directory(dirPath);
-    Collection collection = Collection._(
-      name: name,
-      path: dirPath,
-      serializationEngine: serializationEngines.first,
-      storageEngine: storageEngines.first,
-    );
-    if (!dir.existsSync()) {
+    final colMeta = structure.getCollection(name);
+    Collection collection;
+    if (colMeta == null) {
+      //create
+      final dirPath = join(parentDir, name.replaceAll(_regex, "_"));
+      final dir = Directory(dirPath);
+      collection = Collection._(
+        name: name,
+        path: dirPath,
+        serializationEngine: serializationEngines.first,
+        storageEngine: storageEngines.first,
+      );
       dir.createSync(recursive: true);
-      await _setSerializationEngineFor(dirPath, collection._serializationEngine);
-      await _setStorageEngineFor(dirPath, collection._storageEngine);
+      structure.addCollection(
+        CollectionMeta(
+          name: name,
+          storagePath: dir.absolute.path,
+          storageEngine: collection._storageEngine.id,
+          serializationEngine: collection._serializationEngine.id,
+        ),
+      );
     } else {
-      //Folder already existed, extract used engines from it
-      var id = await _getSerializationEngineIdFor(dirPath);
-      final serializeEngine = serializationEngines.firstWhereOrNull((e) => e.isCompatible(id));
+      //open
+      final serializeEngine =
+          serializationEngines.firstWhereOrNull((e) => e.isCompatible(colMeta.serializationEngine));
       if (serializeEngine == null) {
-        throw Exception("Collection with name $name requires usage of unknown engine $id");
+        throw Exception("Collection with name $name requires usage of unknown "
+            "serialization engine: ${colMeta.serializationEngine}");
       }
-      collection._serializationEngine = serializeEngine;
-      //storage
-      id = await _getStorageEngineIdFor(dirPath);
-      final storageEngine = storageEngines.firstWhereOrNull((e) => e.isCompatible(id));
+      final storageEngine =
+          storageEngines.firstWhereOrNull((e) => e.isCompatible(colMeta.storageEngine));
       if (storageEngine == null) {
-        throw Exception("Collection with name $name requires usage of unknown engine $id");
+        throw Exception("Collection with name $name requires usage of unknown "
+            "storage engine ${colMeta.storageEngine}");
       }
-      collection._storageEngine = storageEngine;
+      collection = Collection._(
+        name: name,
+        path: colMeta.storagePath,
+        serializationEngine: serializeEngine,
+        storageEngine: storageEngine,
+      );
+      final dir = Directory(colMeta.storagePath);
+      if (!dir.existsSync()) {
+        dir.createSync();
+      }
     }
+
     await collection._open();
     return collection;
   }
 
-  static Future<String> _getSerializationEngineIdFor(String dirPath) async {
-    final dir = Directory(join(dirPath, "meta"));
-    if (!dir.existsSync()) {
-      dir.createSync();
-    }
-    try {
-      File file = File(join(dir.absolute.path, "serialization_engine_id"));
-      return file.readAsStringSync();
-    } catch (e) {
-      throw Exception("Can't access information about engine in collection path: $dirPath");
-    }
-  }
-
-  static Future<void> _setSerializationEngineFor(String dirPath, SerializationEngine engine) async {
-    final dir = Directory(join(dirPath, "meta"));
-    if (!dir.existsSync()) {
-      dir.createSync();
-    }
-    try {
-      File file = File(join(dir.absolute.path, "serialization_engine_id"));
-      file.writeAsStringSync(engine.id, flush: true);
-    } catch (e) {
-      throw Exception("Can't access information about engine in collection path: $dirPath");
-    }
-  }
-
-  static Future<void> _setStorageEngineFor(String dirPath, StorageEngine engine) async {
-    final dir = Directory(join(dirPath, "meta"));
-    if (!dir.existsSync()) {
-      dir.createSync();
-    }
-    try {
-      File file = File(join(dir.absolute.path, "store_engine_id"));
-      file.writeAsStringSync(engine.id, flush: true);
-    } catch (e) {
-      throw Exception("Can't access information about engine in collection path: $dirPath");
-    }
-  }
-
-  static Future<String> _getStorageEngineIdFor(String dirPath) async {
-    final dir = Directory(join(dirPath, "meta"));
-    if (!dir.existsSync()) {
-      dir.createSync();
-    }
-    try {
-      File file = File(join(dir.absolute.path, "store_engine_id"));
-      return file.readAsStringSync();
-    } catch (e) {
-      throw Exception("Can't access information about engine in collection path: $dirPath");
-    }
+  static Future<void> deleteCollection({
+    required Collection collection,
+    required DatabaseStructure structure,
+  }) async {
+    await collection._close();
+    structure.removeCollection(name: collection.name);
+    Directory(collection._path).deleteSync(recursive: true);
   }
 }

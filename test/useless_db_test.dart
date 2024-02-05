@@ -3,18 +3,13 @@ import 'package:useless_db/src/storage_engine/file_store_engine.dart';
 import 'package:useless_db/useless_db.dart';
 import 'package:test/test.dart';
 import 'dart:io';
-import 'package:path/path.dart';
 
 void main() {
   group('General DB tests', () {
     late Database database;
     late String workPath;
     setUp(() {
-      workPath = join(Directory.systemTemp.absolute.path, "useless_db_tests");
-      final d = Directory(workPath);
-      if (d.existsSync()) {
-        Directory(workPath).deleteSync(recursive: true);
-      }
+      workPath = Directory.systemTemp.createTempSync().path;
       database = Database(workPath);
       database.registerEngine(storageEngine: FileStoreEngine(), serializationEngine: JsonEngine());
     });
@@ -22,6 +17,7 @@ void main() {
     test('Should not be possible to open DB more than once', () async {
       await database.open();
       await expectLater(database.open(), throwsA(isException));
+      await database.close();
     });
 
     test('Should not be possible to close not open DB', () async {
@@ -43,7 +39,7 @@ void main() {
       final col = await database.getCollection("test_collection");
       final col2 = await database.getCollection("test_collection");
       expect(col, col2);
-      database.close();
+      await database.close();
     });
 
     test('Delete collection', () async {
@@ -54,7 +50,7 @@ void main() {
       await database.deleteCollection("test_collection");
       list = await database.getCollectionsList();
       expect(list, []);
-      database.close();
+      await database.close();
     });
 
     test('Get collections list', () async {
@@ -63,7 +59,7 @@ void main() {
       await database.getCollection("test_collection_2");
       final list = await database.getCollectionsList();
       expect(list, ["test_collection", "test_collection_2"]);
-      database.close();
+      await database.close();
     });
   });
 }

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
-abstract class StorageEngine {
+import '../database_engine.dart';
+
+abstract class StorageEngine extends DatabaseEngine {
   String get id;
 
   bool isCompatible(String engineId);

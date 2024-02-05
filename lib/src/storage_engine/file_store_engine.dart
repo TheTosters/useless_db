@@ -35,6 +35,10 @@ class FileStoreEngine implements StorageEngine {
 
   void _innerOpen(String workDir) {
     _workPath = workDir;
+    final metaDir = Directory(join(_workPath, "meta"));
+    if (!metaDir.existsSync()) {
+      metaDir.createSync();
+    }
   }
 
   String _encodeIdToName(String docId, String extension) {
