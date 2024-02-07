@@ -44,7 +44,7 @@ class Cursor {
   Future<String?> deleteNextDocument() async {
     String? docId;
     bool accepted = false;
-    if (_keyIndex < _snapshot.length) {
+    if (_keyIndex < _snapshot.length - 1) {
       do {
         _keyIndex++;
         docId = _snapshot[_keyIndex];

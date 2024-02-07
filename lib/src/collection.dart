@@ -96,6 +96,9 @@ class Collection {
     final docId = object[idField] ?? UuidV7(goptions: _uuidOptions).generate();
     await _docLockList.lockWrite(_indicesLockDocName);
     await _docLockList.lockWrite(docId);
+    for(final index in _indices) {
+      index.addOrUpdateDocument(docId, object);
+    }
     final data = _serializationEngine.encode(object);
     await _storageEngine.write(docId, data);
     _docLockList.releaseWrite(docId);
@@ -160,7 +163,13 @@ class Collection {
   }
 
   Future<bool> removeDocument(String docId) async {
-    return _storageEngine.deleteDocument(docId);
+    final result = _storageEngine.deleteDocument(docId);
+    await _docLockList.lockRead(_indicesLockDocName);
+    for(final index in _indices) {
+      index.deleteDocument(docId);
+    }
+    _docLockList.releaseRead(_indicesLockDocName);
+    return result;
   }
 
   Future<Index> primaryIndex() async {

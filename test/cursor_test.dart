@@ -43,11 +43,17 @@ void main() {
       await database.open();
       final r = Random();
       items = [];
+      final rndSet = <int>{};
+      while(rndSet.length < 100) {
+        rndSet.add(r.nextInt(9999));
+      }
       final col = await database.getCollection("test_col");
-      for (int t = 0; t < 100; t++) {
-        final item = {Collection.idField: "doc-$t", "iKey": t, "rnd": r.nextInt(9999)};
+      int t = 0;
+      for (final randValue in rndSet) {
+        final item = {Collection.idField: "doc-$t", "iKey": t, "rnd": randValue};
         items.add(item);
         await col.setDocument(item);
+        t++;
       }
     });
 
@@ -94,5 +100,25 @@ void main() {
       Function eq = const ListEquality().equals;
       expect(eq(list, exp), true);
     });
+
+    test('Remove all documents using cursor', () async {
+      final col = await database.getCollection("test_col");
+      await col.addIndex(sortInfo: [("rnd", true)], name: "ind");
+      final index = await col.getIndex(name: "ind");
+      final cursor = Cursor(collection: col, index: index!);
+      await cursor.reset();
+      while(await cursor.deleteNextDocument() != null) {
+        //nothing
+      }
+      await cursor.reset();
+      final count = await cursor.length;
+      expect(count, 0);
+    });
   });
+
+
+  //TODO: Test index -> preserve across db close/open
+  //TODO: Test index -> add document to Db while index was already created
+  //TODO: Test index -> remove document to Db while index was already created
+  //TODO: Test index -> update document to Db while index was already created
 }
