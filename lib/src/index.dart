@@ -27,7 +27,22 @@ class _KeysWrapper implements Comparable<_KeysWrapper> {
   }
 }
 
-class Index {
+abstract class Index {
+  String get name;
+  void deleteDocument(String docId);
+
+  void addOrUpdateDocument(String docId, Map<String, dynamic> content);
+
+  Future<List<String>> performSnapshot();
+
+  Future<void> onCreated();
+
+  Future<void> onDestroy();
+
+  List<String> definition();
+}
+
+class SortedIndex implements Index {
   ///This is public but DO NOT MODIFY after creation. Bad things will happen!
   /// (keyName,ascending)
   final List<KeySortInfo> sortInfo;
@@ -35,10 +50,13 @@ class Index {
 
   ///this allow to get set from [_items] knowing only docId. We share this same set instance!
   final _docToSet = <String, Set<String>>{};
+
+  @override
   final String name;
 
-  Index(this.sortInfo, {this.name = "_unnamed_"});
+  SortedIndex(this.sortInfo, {this.name = "_unnamed_"});
 
+  @override
   void deleteDocument(String docId) {
     final set = _docToSet.remove(docId);
     if (set != null) {
@@ -46,6 +64,7 @@ class Index {
     }
   }
 
+  @override
   void addOrUpdateDocument(String docId, Map<String, dynamic> content) {
     final wrapper = _KeysWrapper(content, sortInfo);
     var set = _docToSet[docId];
@@ -75,6 +94,7 @@ class Index {
     }
   }
 
+  @override
   Future<List<String>> performSnapshot() async {
     final result = <String>[];
     for (final d in _items.values) {
@@ -83,24 +103,28 @@ class Index {
     return result;
   }
 
+  @override
   Future<void> onCreated() async {
     //Currently nothing but who knows...
   }
 
+  @override
   Future<void> onDestroy() async {
     //Currently nothing but who knows...
   }
 
-  List<String> definition() => [name, ...sortInfo.map((e) => "${e.$1}${e.$2 ? "+" : "-"}")];
+  @override
+  List<String> definition() =>
+      ["SortedIndex", name, ...sortInfo.map((e) => "${e.$1}${e.$2 ? "+" : "-"}")];
 
   static Index? fromDefinition(List<String> definition) {
     Index? result;
-    if (definition.length > 1) {
+    if (definition.length > 2 && definition.first == "SortedIndex") {
       final name = definition.removeAt(0);
       final sortInfo = definition
           .map((e) => (e.substring(0, e.length - 1), e.runes.last == 43))
           .toList(growable: false);
-      result = Index(sortInfo, name: name);
+      result = SortedIndex(sortInfo, name: name);
     }
 
     return result;

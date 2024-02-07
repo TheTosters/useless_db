@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../database_engine.dart';
+import '../index.dart';
 
 abstract class StorageEngine extends DatabaseEngine {
   String get id;
@@ -29,4 +30,6 @@ abstract class StorageEngine extends DatabaseEngine {
     int? loadOffset,
     int? loadSize,
   });
+
+  Future<Index> getPrimaryIndex();
 }

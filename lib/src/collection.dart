@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:path/path.dart';
+import 'package:uuid/data.dart';
+import 'package:uuid/rng.dart';
+import 'package:uuid/v7.dart';
 
 import 'database_structure.dart';
 import 'index.dart';
@@ -11,9 +14,11 @@ import 'storage_engine/storage_engine.dart';
 
 class Collection {
   static const String _indicesLockDocName = "\x00\x02\x00";
+  static const String idField = "_id";
+  final GlobalOptions _uuidOptions = GlobalOptions(MathRNG());
   final String name;
   final String _path;
-  SerializationEngine _serializationEngine;
+  final SerializationEngine _serializationEngine;
   StorageEngine _storageEngine;
   bool _operational;
   final LockList<String> _docLockList = LockList<String>();
@@ -45,7 +50,8 @@ class Collection {
     final indexNames = await _loadIndicesNames();
     for (final name in indexNames) {
       final data = await _storageEngine.readMetadata("index-$name");
-      final index = data != null ? Index.fromDefinition(_serializationEngine.decode(data)) : null;
+      final index =
+          data != null ? SortedIndex.fromDefinition(_serializationEngine.decode(data)) : null;
       if (index != null) {
         _indices.add(index);
         await index.onCreated();
@@ -83,11 +89,11 @@ class Collection {
     return data != null ? _serializationEngine.decode(data) : null;
   }
 
-  Future<void> setDocument(String docId, Map<String, dynamic> object) async {
+  Future<void> setDocument(Map<String, dynamic> object) async {
     if (!_operational) {
       throw Exception("Collection $name is closed.");
     }
-
+    final docId = object[idField] ?? UuidV7(goptions: _uuidOptions).generate();
     await _docLockList.lockWrite(_indicesLockDocName);
     await _docLockList.lockWrite(docId);
     final data = _serializationEngine.encode(object);
@@ -96,20 +102,20 @@ class Collection {
     _docLockList.releaseWrite(_indicesLockDocName);
   }
 
-  Future<void> addIndex(List<KeySortInfo> sortInfo, {String name = "_unnamed_"}) async {
+  Future<void> addIndex({required List<KeySortInfo> sortInfo, String name = "_unnamed_"}) async {
     await _docLockList.lockWrite(_indicesLockDocName);
     if (_indices.any((i) => i.name == name)) {
       _docLockList.releaseWrite(_indicesLockDocName);
       throw Exception("Index with name `$name` already exists!");
     }
-    final index = Index(sortInfo, name: name);
+    final index = SortedIndex(sortInfo, name: name);
     await _storageEngine.writeMetadata(
         "index-$name", _serializationEngine.encode(index.definition()));
     _indices.add(index);
     await _storeIndicesNames();
     await index.onCreated();
     //TODO: Not sure about read doc locking there, see getDocument()...
-    _storageEngine.performSnapshot(
+    await _storageEngine.performSnapshot(
       (docId, {data}) => index.addOrUpdateDocument(docId, _serializationEngine.decode(data!)),
       loadDoc: true,
     );
@@ -155,6 +161,10 @@ class Collection {
 
   Future<bool> removeDocument(String docId) async {
     return _storageEngine.deleteDocument(docId);
+  }
+
+  Future<Index> primaryIndex() async {
+    return await _storageEngine.getPrimaryIndex();
   }
 }
 

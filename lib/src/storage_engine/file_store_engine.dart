@@ -3,7 +3,49 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart';
 
+import '../index.dart';
 import 'storage_engine.dart';
+
+class _PrimaryIndex implements Index {
+  final FileStoreEngine parent;
+
+  _PrimaryIndex(this.parent);
+
+  @override
+  void addOrUpdateDocument(String docId, Map<String, dynamic> content) {
+    throw UnsupportedError("FileStoreEngine primary index does NOT support this call");
+  }
+
+  @override
+  List<String> definition() {
+    throw UnsupportedError("FileStoreEngine primary index does NOT support this call");
+  }
+
+  @override
+  void deleteDocument(String docId) {
+    throw UnsupportedError("FileStoreEngine primary index does NOT support this call");
+  }
+
+  @override
+  String get name => "__PRIMARY__";
+
+  @override
+  Future<void> onCreated() {
+    throw UnsupportedError("FileStoreEngine primary index does NOT support this call");
+  }
+
+  @override
+  Future<void> onDestroy() {
+    throw UnsupportedError("FileStoreEngine primary index does NOT support this call");
+  }
+
+  @override
+  Future<List<String>> performSnapshot() async {
+    final result = <String>[];
+    await parent.performSnapshot((docId, {data}) => result.add(docId));
+    return result;
+  }
+}
 
 class FileStoreEngine implements StorageEngine {
   static const String docFileExtension = ".dat";
@@ -175,4 +217,7 @@ class FileStoreEngine implements StorageEngine {
   @override
   Future<bool> deleteMetadata(String metaId) async =>
       await _genericDelete(File(join(_workPath, _encodeIdToName(metaId, metaFileExtension))));
+
+  @override
+  Future<Index> getPrimaryIndex() async => _PrimaryIndex(this);
 }
