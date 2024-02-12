@@ -32,7 +32,7 @@ class Cursor {
         if (data != null) {
           accepted = filter?.predicate(docId, data) ?? true;
         }
-      } while (_keyIndex < _snapshot.length && !accepted);
+      } while (_keyIndex < _snapshot.length - 1 && !accepted);
       final innerSelector = selector;
       if (accepted && innerSelector != null && data != null) {
         data = Map.fromIterable(data.entries.where((entry) => innerSelector.contains(entry.key)));
@@ -52,7 +52,7 @@ class Cursor {
         if (data != null) {
           accepted = filter?.predicate(docId, data) ?? true;
         }
-      } while (_keyIndex < _snapshot.length && !accepted);
+      } while (_keyIndex < _snapshot.length - 1 && !accepted);
       if (accepted) {
         await collection.removeDocument(docId);
       }

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:test/test.dart';
 import 'package:useless_db/src/cursor.dart';
+import 'package:useless_db/src/filter.dart';
 import 'package:useless_db/src/serialization_engines/bson_engine.dart';
 import 'package:useless_db/src/storage_engine/file_store_engine.dart';
 import 'package:useless_db/useless_db.dart';
@@ -44,7 +45,7 @@ void main() {
       final r = Random();
       items = [];
       final rndSet = <int>{};
-      while(rndSet.length < 100) {
+      while (rndSet.length < 100) {
         rndSet.add(r.nextInt(9999));
       }
       final col = await database.getCollection("test_col");
@@ -93,10 +94,8 @@ void main() {
         }
         list.add(docId);
       }
-      final exp = items
-          .sorted((a, b) => a["rnd"] - b["rnd"])
-          .map((e) => e[Collection.idField])
-          .toList();
+      final exp =
+          items.sorted((a, b) => a["rnd"] - b["rnd"]).map((e) => e[Collection.idField]).toList();
       Function eq = const ListEquality().equals;
       expect(eq(list, exp), true);
     });
@@ -107,16 +106,40 @@ void main() {
       final index = await col.getIndex(name: "ind");
       final cursor = Cursor(collection: col, index: index!);
       await cursor.reset();
-      while(await cursor.deleteNextDocument() != null) {
+      while (await cursor.deleteNextDocument() != null) {
         //nothing
       }
       await cursor.reset();
       final count = await cursor.length;
       expect(count, 0);
     });
+
+    test('Get from collection rnd ascending only randoms less then 500', () async {
+      final col = await database.getCollection("test_col");
+      await col.addIndex(sortInfo: [("rnd", true)], name: "ind");
+      final index = await col.getIndex(name: "ind");
+      final filter = Filter(matchers: {"rnd": OpLt(500)});
+      final cursor = Cursor(collection: col, index: index!, filter: filter);
+      await cursor.reset();
+      final count = await cursor.length;
+      expect(count, items.length);
+      final list = <String>[];
+      while (true) {
+        final (docId, _) = await cursor.getNextDocument();
+        if (docId == null) {
+          break;
+        }
+        list.add(docId);
+      }
+      final exp = items
+          .where((e) => e["rnd"] < 500)
+          .sorted((a, b) => a["rnd"] - b["rnd"])
+          .map((e) => e[Collection.idField])
+          .toList();
+      Function eq = const ListEquality().equals;
+      expect(eq(list, exp), true);
+    });
   });
-
-
   //TODO: Test index -> preserve across db close/open
   //TODO: Test index -> add document to Db while index was already created
   //TODO: Test index -> remove document to Db while index was already created

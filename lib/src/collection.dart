@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:path/path.dart';
+import 'package:useless_db/src/serialization_engines/bson_engine.dart';
 import 'package:uuid/data.dart';
 import 'package:uuid/rng.dart';
 import 'package:uuid/v7.dart';
@@ -50,15 +51,16 @@ class Collection {
     final indexNames = await _loadIndicesNames();
     for (final name in indexNames) {
       final data = await _storageEngine.readMetadata("index-$name");
-      final index =
-          data != null ? SortedIndex.fromDefinition(_serializationEngine.decode(data)) : null;
+      final index = data != null
+          ? SortedIndex.fromDefinition(listFromBsonMap(_serializationEngine.decode(data)))
+          : null;
       if (index != null) {
         _indices.add(index);
         await index.onCreated();
       }
     }
     //feed data into indices
-    _storageEngine.performSnapshot(
+    await _storageEngine.performSnapshot(
       (docId, {data}) {
         final decoded = _serializationEngine.decode(data!);
         for (final index in _indices) {
@@ -71,7 +73,9 @@ class Collection {
 
   Future<List<String>> _loadIndicesNames() async {
     final data = await _storageEngine.readMetadata("indices");
-    return data != null ? _serializationEngine.decode(data) : [];
+    final result =
+        data != null ? listFromBsonMap<String>(_serializationEngine.decode(data)) : <String>[];
+    return result;
   }
 
   Future<void> _storeIndicesNames() async {
@@ -96,7 +100,7 @@ class Collection {
     final docId = object[idField] ?? UuidV7(goptions: _uuidOptions).generate();
     await _docLockList.lockWrite(_indicesLockDocName);
     await _docLockList.lockWrite(docId);
-    for(final index in _indices) {
+    for (final index in _indices) {
       index.addOrUpdateDocument(docId, object);
     }
     final data = _serializationEngine.encode(object);
@@ -165,7 +169,7 @@ class Collection {
   Future<bool> removeDocument(String docId) async {
     final result = _storageEngine.deleteDocument(docId);
     await _docLockList.lockRead(_indicesLockDocName);
-    for(final index in _indices) {
+    for (final index in _indices) {
       index.deleteDocument(docId);
     }
     _docLockList.releaseRead(_indicesLockDocName);

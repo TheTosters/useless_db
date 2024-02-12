@@ -42,6 +42,8 @@ abstract class Index {
   List<String> definition();
 }
 
+typedef WrapperAndSet = (_KeysWrapper, Set<String>);
+
 class SortedIndex implements Index {
   ///This is public but DO NOT MODIFY after creation. Bad things will happen!
   /// (keyName,ascending)
@@ -49,7 +51,7 @@ class SortedIndex implements Index {
   final _items = SplayTreeMap<_KeysWrapper, Set<String>>();
 
   ///this allow to get set from [_items] knowing only docId. We share this same set instance!
-  final _docToSet = <String, Set<String>>{};
+  final _docIdToRef = <String, WrapperAndSet>{};
 
   @override
   final String name;
@@ -58,39 +60,45 @@ class SortedIndex implements Index {
 
   @override
   void deleteDocument(String docId) {
-    final set = _docToSet.remove(docId);
-    if (set != null) {
+    final record = _docIdToRef.remove(docId);
+    if (record != null) {
+      final (keyWrapper, set) = record;
       set.remove(docId);
+      if (set.isEmpty) {
+        _items.remove(keyWrapper);
+      }
     }
+  }
+
+  void _innerAddNew(_KeysWrapper wrapper, String docId, Map<String, dynamic> content) {
+    var set = _items[wrapper];
+    if (set != null) {
+      set.add(docId);
+    } else {
+      set = {docId};
+      _items[wrapper] = set;
+    }
+    _docIdToRef[docId] = (wrapper, set);
   }
 
   @override
   void addOrUpdateDocument(String docId, Map<String, dynamic> content) {
     final wrapper = _KeysWrapper(content, sortInfo);
-    var set = _docToSet[docId];
-    if (set != null) {
+    var record = _docIdToRef[docId];
+    if (record != null) {
       //this document is already in index, check if we need to move it somewhere else
-      var iSet = _items[wrapper]!;
-      if (!iSet.contains(docId)) {
-        //using keys and values from content we got set from ordered items but this set doesn't
-        //contain docId this mean data changes. We need to update entries
-        set.remove(docId); //remove docId from old place in sorted _items
-        _docToSet[docId] = iSet; //store mapping docId to new set which will contain docId
-        iSet.add(docId); //in this place we will have now our docId
+      final (keyWrapper, set) = record;
+      if (keyWrapper.compareTo(wrapper) != 0) {
+        //we need to move it
+        final b = set.remove(docId);
+        assert(b, "Document should be in this set!");
+        if (set.isEmpty) {
+          _items.remove(keyWrapper);
+        }
+        _innerAddNew(wrapper, docId, content);
       }
     } else {
-      //If we are here, this mean document is not present in index, we will add it
-      //First check if there is a set for such wrapper since it might be
-      var iSet = _items[wrapper];
-      if (iSet != null) {
-        //Yes it is, add new doc here and store reference to this set
-        _docToSet[docId] = iSet;
-        iSet.add(docId);
-      } else {
-        set = {docId}; //Important: use this same instance of set in both collections!
-        _docToSet[docId] = set;
-        _items[wrapper] = set;
-      }
+      _innerAddNew(wrapper, docId, content);
     }
   }
 
@@ -120,6 +128,7 @@ class SortedIndex implements Index {
   static Index? fromDefinition(List<String> definition) {
     Index? result;
     if (definition.length > 2 && definition.first == "SortedIndex") {
+      definition.removeAt(0); //dispose type info "SortedIndex"
       final name = definition.removeAt(0);
       final sortInfo = definition
           .map((e) => (e.substring(0, e.length - 1), e.runes.last == 43))
