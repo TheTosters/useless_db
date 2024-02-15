@@ -1,19 +1,17 @@
 name: useless_db
-description: A starting point for Dart libraries or applications.
-version: 1.0.0
-# repository: https://github.com/my_org/my_repo
+description: Small yet useless database system for small needs. Only for people who like problems and "but why"'s...
+version: 0.0.1
+repository: https://github.com/TheTosters/useless_db
 
 environment:
   sdk: ^3.2.1
 
-# Add regular dependencies here.
 dependencies:
   bson: ^5.0.3
   collection: ^1.18.0
   path: ^1.9.0
   synchronized: ^3.1.0+1
   uuid: ^4.3.3
-  # path: ^1.8.0
 
 dev_dependencies:
   lints: ^2.1.0

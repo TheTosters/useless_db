@@ -1,8 +1,9 @@
+import 'dart:io';
+
+import 'package:test/test.dart';
 import 'package:useless_db/src/serialization_engines/json_engine.dart';
 import 'package:useless_db/src/storage_engine/file_store_engine.dart';
 import 'package:useless_db/useless_db.dart';
-import 'package:test/test.dart';
-import 'dart:io';
 
 void main() {
   group('General DB tests', () {

@@ -22,7 +22,7 @@ void main() {
 
     test('Update data in collection', () async {
       final col = await database.getCollection("test_col");
-      final doc = <String, dynamic> {
+      final doc = <String, dynamic>{
         Collection.idField: "doc-1",
         "str-key": "Initial value",
       };

@@ -29,6 +29,7 @@ class _KeysWrapper implements Comparable<_KeysWrapper> {
 
 abstract class Index {
   String get name;
+
   void deleteDocument(String docId);
 
   void addOrUpdateDocument(String docId, Map<String, dynamic> content);

@@ -1,3 +1,6 @@
-## 1.0.0
+## 0.0.1
 
-- Initial version.
+- Support fo collections
+- Support for primary index
+- Support for sorted index
+- Support for basic cursor
